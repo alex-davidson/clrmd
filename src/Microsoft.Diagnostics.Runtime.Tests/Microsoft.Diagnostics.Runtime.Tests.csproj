@@ -57,7 +57,11 @@
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
     <Compile Include="HeapTests.cs" />
+    <Compile Include="LiveProcessTests.cs" />
     <Compile Include="MethodTests.cs" />
+    <None Include="Targets\LiveProcess.cs">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
     <Compile Include="TypeTests.cs" />
     <Compile Include="MinidumpTests.cs" />
     <Compile Include="ModuleTests.cs" />

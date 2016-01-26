@@ -4,6 +4,7 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 using System;
 using System.CodeDom.Compiler;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -29,12 +30,14 @@ namespace Microsoft.Diagnostics.Runtime.Tests
         static Lazy<TestTarget> _gcHandles = new Lazy<TestTarget>(() => new TestTarget("GCHandles.cs"));
         static Lazy<TestTarget> _types = new Lazy<TestTarget>(() => new TestTarget("Types.cs"));
         static Lazy<TestTarget> _appDomains = new Lazy<TestTarget>(() => new TestTarget("AppDomains.cs", NestedException));
+        static Lazy<LiveTestTarget> _liveProcess = new Lazy<LiveTestTarget>(() => new LiveTestTarget("LiveProcess.cs"));
 
         public static TestTarget NestedException { get { return _nestedException.Value; } }
         public static ExceptionTestData NestedExceptionData = new ExceptionTestData();
         public static TestTarget GCHandles { get { return _gcHandles.Value; } }
         public static TestTarget Types { get { return _types.Value; } }
         public static TestTarget AppDomains { get { return _appDomains.Value; } }
+        public static LiveTestTarget LiveProcess { get { return _liveProcess.Value; } }
     }
 
     public class TestTarget
@@ -211,5 +214,129 @@ namespace Microsoft.Diagnostics.Runtime.Tests
             basePath += "_full.dmp";
             return basePath;
         }
+    }
+
+    public class LiveTestTarget
+    {
+        static TestTarget _sharedLibrary = new TestTarget("SharedLibrary.cs", true);
+
+        private bool _isLibrary;
+        private string _source;
+        private string _executable;
+
+        public string Executable
+        {
+            get
+            {
+                if (_executable == null)
+                    CompileSource();
+                return _executable;
+            }
+        }
+
+        public string Pdb
+        {
+            get
+            {
+                return Path.ChangeExtension(Executable, "pdb");
+            }
+        }
+
+        public string Source { get { return _source; } }
+        
+        public LiveTestTarget(string source, bool isLibrary = false)
+        {
+            _source = Path.Combine(Environment.CurrentDirectory, "Targets", source);
+            _isLibrary = isLibrary;
+        }
+
+        public LiveTestTarget(string source, params LiveTestTarget[] required)
+        {
+            _source = Path.Combine(Environment.CurrentDirectory, "Targets", source);
+            _isLibrary = false;
+
+            foreach (var item in required)
+                item.CompileSource();
+        }
+        
+        void CompileSource()
+        {
+            if (_executable != null)
+                return;
+
+            // Don't recompile if it's there.
+            string destination = GetOutputAssembly();
+            if (!File.Exists(destination))
+                _executable = CompileCSharp(_source, destination, _isLibrary);
+            else
+                _executable = destination;
+        }
+
+        private string GetOutputAssembly()
+        {
+            string extension = _isLibrary ? "dll" : "exe";
+            return Path.Combine(Helpers.TestWorkingDirectory, Path.ChangeExtension(Path.GetFileNameWithoutExtension(_source), extension));
+        }
+
+        private static string CompileCSharp(string source, string destination, bool isLibrary)
+        {
+            CSharpCodeProvider provider = new CSharpCodeProvider();
+            CompilerParameters cp = new CompilerParameters();
+            cp.ReferencedAssemblies.Add("system.dll");
+            
+            if (isLibrary)
+            {
+                cp.GenerateExecutable = false;
+            }
+            else
+            {
+                cp.GenerateExecutable = true;
+                cp.ReferencedAssemblies.Add(_sharedLibrary.Executable);
+            }
+
+            cp.GenerateInMemory = false;
+            cp.CompilerOptions = IntPtr.Size == 4 ? "/platform:x86" : "/platform:amd64";
+
+            cp.IncludeDebugInformation = true;
+            cp.OutputAssembly = destination;
+            CompilerResults cr = provider.CompileAssemblyFromFile(cp, source);
+
+            if (cr.Errors.Count > 0 && System.Diagnostics.Debugger.IsAttached)
+                System.Diagnostics.Debugger.Break();
+
+            Assert.AreEqual(0, cr.Errors.Count);
+
+            return cr.PathToAssembly;
+        }
+
+        public class ProcessLifetime : IDisposable
+        {
+            private readonly Process process;
+
+            public ProcessLifetime(Process process)
+            {
+                this.process = process;
+            }
+
+            public int Pid { get { return process.Id; } } 
+
+            public DataTarget Attach(AttachFlag how)
+            {
+                return DataTarget.AttachToProcess(process.Id, 1000, how);
+            }
+
+            public void Dispose()
+            {
+                process.Kill();
+                process.Dispose();
+            }
+        }
+
+        public ProcessLifetime RunProcess()
+        {
+            string executable = Executable;
+            return new ProcessLifetime(Process.Start(executable));
+        }
+        
     }
 }
