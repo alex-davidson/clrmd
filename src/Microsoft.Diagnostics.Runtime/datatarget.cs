@@ -917,6 +917,12 @@ namespace Microsoft.Diagnostics.Runtime
         public abstract Microsoft.Diagnostics.Runtime.Interop.IDebugClient DebuggerInterface { get; }
 
         /// <summary>
+        /// Returns the IDebugControl interface associated with this datatarget.  (Will return null if the
+        /// user attached passively.)
+        /// </summary>
+        public Microsoft.Diagnostics.Runtime.Interop.IDebugControl DebuggerControlInterface { get { return DebuggerInterface as IDebugControl; } }
+
+        /// <summary>
         /// Enumerates information about the loaded modules in the process (both managed and unmanaged).
         /// </summary>
         public abstract IEnumerable<ModuleInfo> EnumerateModules();

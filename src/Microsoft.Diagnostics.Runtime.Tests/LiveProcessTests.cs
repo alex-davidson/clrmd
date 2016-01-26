@@ -17,6 +17,8 @@ namespace Microsoft.Diagnostics.Runtime.Tests
             using (DataTarget dt = process.Attach(AttachFlag.Passive))
             {
                 Assert.IsFalse(dt.IsMinidump);
+                Assert.IsNull(dt.DebuggerInterface);
+                Assert.IsNull(dt.DebuggerControlInterface);
             }
 
             using (var process = TestTargets.LiveProcess.RunProcess())
@@ -24,6 +26,7 @@ namespace Microsoft.Diagnostics.Runtime.Tests
             {
                 Assert.IsFalse(dt.IsMinidump);
                 Assert.IsNotNull(dt.DebuggerInterface);
+                Assert.IsNotNull(dt.DebuggerControlInterface);
             }
 
             using (var process = TestTargets.LiveProcess.RunProcess())
@@ -31,6 +34,7 @@ namespace Microsoft.Diagnostics.Runtime.Tests
             {
                 Assert.IsFalse(dt.IsMinidump);
                 Assert.IsNotNull(dt.DebuggerInterface);
+                Assert.IsNotNull(dt.DebuggerControlInterface);
             }
         }
     }
